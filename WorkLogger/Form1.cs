@@ -74,11 +74,6 @@ namespace WorkLogger
         private List<string[]> m_data = new List<string[]>();
 
         private Dictionary<string, int> m_dict = new Dictionary<string, int>();
-        static int KeySelector(KeyValuePair<string, int> pair)
-        {
-            // 並べ替えの際のキーにValueの値を使用する
-            return pair.Value;
-        }
 
         private int m_totaltime = 0; // total time
         private int m_loggedtime = 0; // logged time (a part of total time)
@@ -98,7 +93,16 @@ namespace WorkLogger
             m_timer.Interval = m_interval;
             m_timer.Enabled = true;
 
+            listView1_initialize();
+
+            button1_update();
+        }
+
+        private void listView1_initialize()
+        {
+            listView1.Clear();
             listView1.View = View.Details;
+            listView1.Columns.Add("Time", 150);
             listView1.Columns.Add("Program", 200);
             listView1.Columns.Add("File/Title", 300);
         }
@@ -166,12 +170,10 @@ namespace WorkLogger
             if (/*IsWindowVisible(hWnd) != 0 && */GetWindowText(hWnd, sb, sb.Capacity) != 0)
             {
                 string title = sb.ToString();
-                //label1.Text = title;
                 uint pid;
                 GetWindowThreadProcessId(hWnd, out pid);
                 Process p = Process.GetProcessById((int)pid);
                 string programpath = p.MainModule.FileName.ToString();
-                //label1.Text = programpath;
 
                 string[] delimiter = { "\\" };
                 string[] delimiter2 = { " - " };
@@ -183,9 +185,11 @@ namespace WorkLogger
                 //textBox1.Text += programname + ": " + filename + System.Environment.NewLine;
                 //textBox1.SelectionStart = textBox1.Text.Length;
                 //textBox1.ScrollToCaret();
+                
+                DateTime dt = DateTime.Now;
+                string time = dt.ToString("F");
 
-
-                string[] item = { programname, filename };
+                string[] item = { time, programname, filename };
                 listView1.Items.Add(new ListViewItem(item));
                 listView1.EnsureVisible(listView1.Items.Count - 1);
 
@@ -207,7 +211,7 @@ namespace WorkLogger
 
                 //foreach (string[] data in m_data)
                 IOrderedEnumerable<KeyValuePair<string, int>> sorted = m_dict.OrderByDescending(pair => pair.Value);
-                foreach (KeyValuePair<string, int> pair in sorted/*m_dict*/)
+                foreach (KeyValuePair<string, int> pair in sorted)
                 {
                     DataPoint point = new DataPoint();
                     point.XValue = 0;
@@ -247,13 +251,18 @@ namespace WorkLogger
         private void button1_Click(object sender, EventArgs e)
         {
             m_bLogging = !m_bLogging;
+            button1_update();
+        }
+
+        private void button1_update()
+        {
             if (m_bLogging)
             {
-                button1.Text = "&Out of Desk";
+                button1.Text = "&Leaving";
             }
             else
             {
-                button1.Text = "&Resume work";
+                button1.Text = "&Returned";
             }
         }
 
@@ -279,13 +288,19 @@ namespace WorkLogger
         private void button3_Click(object sender, EventArgs e)
         {
             // Load
+            m_timer.Enabled = false;
+
             OpenFileDialog dlg = new OpenFileDialog();
 
             dlg.Filter = "Text file(*.txt)|*.txt|All files(*.*)|*.*";
             dlg.RestoreDirectory = true;
             if (dlg.ShowDialog() == DialogResult.OK)
             {
+                LoadData(dlg.FileName);
+                // TODO
             }
+
+            m_timer.Enabled = true;
         }
 
         private void button4_Click(object sender, EventArgs e)
@@ -306,9 +321,28 @@ namespace WorkLogger
             m_timer.Enabled = true;
         }
 
+        private void LoadData(string filename)
+        {
+            string line = "";
+            StreamReader sr = new StreamReader(filename, Encoding.GetEncoding("Shift_JIS"));
+
+            m_dict.Clear();
+            listView1_initialize();
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                string[] delimiter = { "\t" };
+                string[] sttmp = line.Split(delimiter, StringSplitOptions.RemoveEmptyEntries);
+                string key = sttmp[0];
+                int value = int.Parse(sttmp[1]);
+
+                m_dict[key] = value;
+            }
+            sr.Close();
+        }
+
         private void SaveData(string filename)
         {
-            //StreamReader sr = new StreamReader(filename, Encoding.GetEncoding("Shift_JIS"));
             StreamWriter sw = new StreamWriter(filename, false, Encoding.GetEncoding("Shift_JIS"));
             IOrderedEnumerable<KeyValuePair<string, int>> sorted = m_dict.OrderByDescending(pair => pair.Value);
             foreach (KeyValuePair<string, int> pair in sorted/*m_dict*/)
